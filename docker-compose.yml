@@ -1,0 +1,22 @@
+services:
+  gpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - QT_QPA_PLATFORM=offscreen
+    volumes:
+      - ./resultatsim:/app/resultatsim
+      - ./images:/app/images
+
+  cpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.cpu
+    environment:
+      - QT_QPA_PLATFORM=offscreen
+    volumes:
+      - ./resultatsim_cpu:/app/resultatsim_cpu
+      - ./images:/app/images

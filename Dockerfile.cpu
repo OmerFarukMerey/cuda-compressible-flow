@@ -1,0 +1,21 @@
+FROM ubuntu:24.04
+
+RUN apt-get update && apt-get install -y \
+    g++ \
+    libopencv-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY main_cpu.cpp .
+COPY images/ images/
+
+RUN g++ -O2 main_cpu.cpp -o compressible_cpu \
+    $(pkg-config --cflags --libs opencv4) \
+    -lopencv_core -lopencv_highgui -lopencv_imgcodecs -lopencv_imgproc
+
+RUN mkdir -p resultatsim_cpu
+
+ENTRYPOINT ["./compressible_cpu"]
+CMD ["images/concordecote.png"]

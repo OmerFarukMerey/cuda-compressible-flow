@@ -94,7 +94,7 @@ void sim_cpu(int Nx, int Ny,
             // Update density (continuity equation)
             rho += -dt * inv2dl * (rhog * vxg - rhod * vxd
                                  + rhoh * vyh - rhob * vyb);
-            rhoa[idx] = min(max(rho, 0.1f * rho0), 20.0f * rho0);
+            rhoa[idx] = fminf(fmaxf(rho, 0.1f * (float)rho0), 20.0f * (float)rho0);
 
             // Solid body: reset density and zero velocity
             if (objet == 0) {
@@ -185,7 +185,7 @@ void aff_cpu(int Nx, int Ny,
 // =============================================================================
 int main(int argc, char *argv[])
 {
-    // Parse command-line argument for image path
+    // Parse command-line arguments: image_path [resolution] [iterations]
     const char *image_path = "concordecote.png";
     if (argc > 1) {
         image_path = argv[1];
@@ -197,10 +197,10 @@ int main(int argc, char *argv[])
     float v  = Mc * c;                              // Initial flow velocity
 
     // Simulation parameters
-    int   R    = 2160;                              // Grid resolution (rows)
-    int   vsim = 2000;                              // Display interval
+    int   R    = (argc > 2) ? atoi(argv[2]) : 540; // Default 540 for CPU
+    int   vsim = 100;                               // Display interval
     float dt   = Lx / (10.0f * R * (v + vt * c));  // CFL-based timestep
-    int   Nt   = (int)(1e3 * vsim);                 // Total iterations
+    int   Nt   = (argc > 3) ? atoi(argv[3]) : 5000; // Default 5000 iters
 
     // Acceleration to reach target velocity over simulation time
     float a = vt * c / (float)(Nt * dt);

@@ -1,0 +1,21 @@
+FROM nvidia/cuda:13.0.0-devel-ubuntu24.04
+
+RUN apt-get update && apt-get install -y \
+    libopencv-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY main.cu .
+COPY images/ images/
+
+RUN nvcc main.cu -o compressible \
+    $(pkg-config --cflags --libs opencv4) \
+    -lopencv_core -lopencv_highgui -lopencv_imgcodecs -lopencv_imgproc \
+    -arch=native
+
+RUN mkdir -p resultatsim
+
+ENTRYPOINT ["./compressible"]
+CMD ["images/concordecote.png"]
