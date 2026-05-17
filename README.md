@@ -17,6 +17,16 @@ Just drop in a PNG silhouette and watch shock waves form in real time.
 
 ---
 
+## Demo
+
+Shock wave formation around a Concorde silhouette as flow transitions from Mach 0.8 to Mach 1.2+:
+
+<video src="sample_simulation_videos/concorde.mp4" controls width="100%"></video>
+
+> GitHub does not auto-play raw `.mp4` files committed to the repo. [Click here to download or view the video directly](sample_simulation_videos/concorde.mp4).
+
+---
+
 ## Features
 
 - **Compressible Navier-Stokes solver** on a 2160x3840 grid (~8.3M cells)
