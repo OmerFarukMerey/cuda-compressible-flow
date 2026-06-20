@@ -20,6 +20,10 @@ using namespace std;
 #define mmol    29E-3       // Molar mass of air (kg/mol)
 #define mu_visc 1.85E-5     // Dynamic viscosity (Pa*s)
 
+// Temperature visualization: weight for blending derived temperature deviation
+// into the output scalar. T_loc = p*mmol/(rho*Rg); deviation from T0 is shown.
+#define T_VIS_GAIN 2.0f     // tunable (e.g. 1.0-4.0)
+
 // Isentropic constant
 #define Ap ((rho0 / mmol * Rg * T) / (powf(rho0 / mmol, gamma)))
 
@@ -149,7 +153,7 @@ void median_cpu(int Nx, int Ny, float *A, float *out)
 // CPU: aff - Compute visualization scalar
 // =============================================================================
 void aff_cpu(int Nx, int Ny,
-             float *vxa, float *vya, float *pa,
+             float *vxa, float *vya, float *pa, float *rhoa,
              float *objeta, float *resultat)
 {
     float P0      = 101300.0f;
@@ -176,6 +180,11 @@ void aff_cpu(int Nx, int Ny,
                           + 0.5f * sqrtf(((vx - v0) * (vx - v0) + vy * vy) * invv0p2);
             resultat[idx] += (1.0f - obj)
                            + sqrtf(dpdx * dpdx + dpdy * dpdy) / P0;
+
+            // Derived temperature (ideal gas): T_loc = p*mmol/(rho*Rg).
+            // Blend |T_loc - T0| / T0 into the fluid region only (obj == 1 in fluid).
+            float Tloc = pa[idx] * mmol / (rhoa[idx] * Rg);
+            resultat[idx] += obj * T_VIS_GAIN * fabsf(Tloc - T) / T;
         }
     }
 }
@@ -288,7 +297,7 @@ int main(int argc, char *argv[])
             cout << "Physical time: " << Nt * dt << " s" << endl;
 
             // Compute visualization field
-            aff_cpu(Nx, Ny, vx, vy, p, objet, resultat);
+            aff_cpu(Nx, Ny, vx, vy, p, rho, objet, resultat);
             plot0 = Mat(Nx, Ny, CV_32F, resultat);
 
             // Save frame to disk

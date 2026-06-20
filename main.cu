@@ -18,6 +18,16 @@ using namespace std;
 #define mmol    29E-3       // Molar mass of air (kg/mol)
 #define mu_visc 1.85E-5     // Dynamic viscosity (Pa*s)
 
+// Temperature visualization: weight for blending derived temperature deviation
+// into the output scalar. T_loc = p*mmol/(rho*Rg); deviation from T0 is shown.
+#define T_VIS_GAIN 2.0f     // tunable (e.g. 1.0-4.0)
+
+// Output mode: 1 = colored temperature heatmap (JET, red=hot, blue=cold)
+//              0 = grayscale blend (velocity + pressure grad + temperature dev)
+#define TEMP_COLORMAP 1
+#define T_LO 250.0f         // colormap low  end (K) -> blue  (cold wake ~ -23 C)
+#define T_HI 350.0f         // colormap high end (K) -> red   (hot bow shock ~ +77 C)
+
 // Isentropic constant: A = (rho0/mmol * Rg * T) / (rho0/mmol)^gamma
 #define Ap ((rho0 / mmol * Rg * T) / (powf(rho0 / mmol, gamma)))
 
@@ -247,7 +257,7 @@ __global__ void median(int Nx, int Ny, float *A, float *out)
 // Combines velocity magnitude and pressure gradient for rendering
 // =============================================================================
 __global__ void aff(int Nx, int Ny,
-                    float *vxa, float *vya, float *pa,
+                    float *vxa, float *vya, float *pa, float *rhoa,
                     float *objeta, float *resultat, float dt, float a)
 {
     float P0      = 101300.0f;
@@ -299,11 +309,22 @@ __global__ void aff(int Nx, int Ny,
         float dpdx = pg - pd;
         float dpdy = ph - pb;
 
-        // Visualization: velocity magnitude + pressure gradient magnitude
+        // Derived temperature (ideal gas): T_loc = p*mmol/(rho*Rg).
+        float Tloc = tile_p[ty][tx] * mmol / (rhoa[idx] * Rg);  // tile_p[ty][tx] == pa[idx]
+
+#if TEMP_COLORMAP
+        // Normalized temperature in [0,1] for a JET colormap (red = hot).
+        // Solid body cells evaluate to T0 (ambient) so the silhouette stays visible.
+        resultat[idx] = (Tloc - T_LO) / (T_HI - T_LO);
+        (void)vx; (void)vy; (void)obj; (void)dpdx; (void)dpdy; (void)v0; (void)invv0p2;
+#else
+        // Grayscale: velocity magnitude + pressure gradient + temperature deviation
         resultat[idx] = (1.0f - obj)
                       + 0.5f * sqrtf(((vx - v0) * (vx - v0) + vy * vy) * invv0p2);
         resultat[idx] += (1.0f - obj)
                        + sqrtf(dpdx * dpdx + dpdy * dpdy) / P0;
+        resultat[idx] += obj * T_VIS_GAIN * fabsf(Tloc - T) / T;
+#endif
     }
 }
 
@@ -325,9 +346,9 @@ int main(int argc, char *argv[])
 
     // Simulation parameters
     int   R    = 2160;                              // Grid resolution (rows)
-    int   vsim = 2000;                              // Display interval
+    int   vsim = (argc > 3) ? atoi(argv[3]) : 2000; // Display/save interval
     float dt   = Lx / (10.0f * R * (v + vt * c));  // CFL-based timestep
-    int   Nt   = (int)(1e3 * vsim);                 // Total iterations
+    int   Nt   = (argc > 2) ? atoi(argv[2]) : (int)(1e3 * vsim); // Total iterations
 
     // Acceleration to reach target velocity over simulation time
     float a = vt * c / (float)(Nt * dt);
@@ -440,16 +461,24 @@ int main(int argc, char *argv[])
             cout << "CUDA: " << cudaGetErrorString(cudaGetLastError()) << endl;
 
             // Compute visualization field
-            aff<<<dimGrid, dimBlock>>>(Nx, Ny, vxa, vya, pa, objeta, result, dt, a);
+            aff<<<dimGrid, dimBlock>>>(Nx, Ny, vxa, vya, pa, rhoa, objeta, result, dt, a);
             cudaMemcpy(resultat, result, Nx * Ny * sizeof(float), cudaMemcpyDeviceToHost);
             plot0 = Mat(Nx, Ny, CV_32F, resultat);
 
             // Save frame to disk
             if (it % (1 * vsim) == 0) {
-                plot0.convertTo(plot, CV_8U, 255);
+                plot0.convertTo(plot, CV_8U, 255);   // result in [0,1] -> [0,255], clamped
+#if TEMP_COLORMAP
+                Mat plotc;
+                applyColorMap(plot, plotc, COLORMAP_JET);   // blue = cold, red = hot
+                imwrite("resultatsim/" + to_string(it / vsim) + ".jpg", plotc);
+                resize(plotc, plotc, Size((int)(900 * 16 / 9.0), 900), 0, 0, INTER_AREA);
+                imshow("Temperature (JET: blue=cold, red=hot)", plotc);
+#else
                 imwrite("resultatsim/" + to_string(it / vsim) + ".jpg", plot);
                 resize(plot0, plot0, Size((int)(900 * 16 / 9.0), 900), 0, 0, INTER_AREA);
                 imshow("Compressible", plot0);
+#endif
                 waitKey(1);
             }
         }

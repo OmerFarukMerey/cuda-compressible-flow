@@ -1,2 +1,12 @@
 *.pdf
 *ment.md
+
+# macOS
+.DS_Store
+
+# Build artifacts
+*.exe
+*.obj
+*.o
+compressible
+compressible_cpu
