@@ -1,5 +1,7 @@
 *.pdf
 *ment.md
+Phase3_*.md
+Phase3_*.tex
 
 # macOS
 .DS_Store
